@@ -1,0 +1,30 @@
+# Notices for CAG Bench
+
+CAG Bench was created by Seth Canfield.
+
+Copyright (c) 2026 Seth Canfield
+
+This project is licensed under the GNU Affero General Public License version 3 or later.
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+## Attribution request
+
+When using, publishing results from, forking, modifying, or redistributing this project, please retain attribution to the original creator:
+
+Original creator: Seth Canfield
+Project: CAG Bench
+Repository: https://github.com/GuideboardLabs/cag-bench
+
+Appropriate attribution examples:
+
+- "Based on CAG Bench, originally created by Seth Canfield."
+- "Benchmarking performed with CAG Bench by Seth Canfield."
+- "Forked from CAG Bench, originally created by Seth Canfield."
+
+## License notice
+
+The AGPL-3.0-or-later license requires that copyright notices and license notices are preserved when the software is copied, modified, or redistributed. This NOTICE file is provided to make attribution expectations explicit.
+
+## Commercial use note
+
+This project is open source under AGPL-3.0-or-later. That license does not prohibit commercial use, but it does require source-sharing obligations for modified versions under the license terms, including network use obligations.
