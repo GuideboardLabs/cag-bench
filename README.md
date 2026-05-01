@@ -1,8 +1,8 @@
 # cag-bench v4
 
-A Linux/Ollama benchmark for comparing RAG, DAG, and CAG over one progressing 30-task project.
+A Linux/Ollama benchmark for comparing retrieval and memory modes over one progressing 30-task project.
 
-CAG means Context Accumulation Generation: accepted project decisions are promoted into persistent memory and reused across later tasks.
+CAG means Context Accumulation Generation: accepted project decisions from task metadata (`promote_summary` and `promote_terms`) are promoted into persistent memory and reused later. Model output is not promoted into durable memory.
 
 ## Run
 
@@ -11,84 +11,109 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ollama pull qwen2.5-coder:7b
-./scripts/run_ollama.sh qwen2.5-coder:7b results/qwen_v4 --repeat-runs 5 --raw-trials
+./scripts/run_baselines.sh qwen2.5-coder:7b results/qwen_v4 --repeat-runs 5 --raw-trials
 ```
 
-Judge mode (optional):
+CAG ablation suite:
 
 ```bash
-./scripts/run_ollama.sh qwen2.5-coder:7b results/qwen_v4_judge --repeat-runs 5 --raw-trials --judge --judge-model qwen2.5-coder:7b
+./scripts/run_cag_ablation.sh qwen2.5-coder:7b results/qwen_v4_ablation --repeat-runs 5 --raw-trials
 ```
 
-Smoke test without Ollama:
+Dry run (no Ollama):
 
 ```bash
 ./scripts/dry_run.sh
 ```
 
+Inspect a task from raw output:
+
+```bash
+python -m cag_bench.inspect --raw results/<run>/raw.jsonl --task T30 --task T01
+```
+
+## Mode and Suite Flags
+
+`cag_bench.run` supports:
+
+- `--suite baselines` (default): `rag,dag,cag`
+- `--suite cag-ablation`: `cag,cag_scoped,cag_oracle_memory`
+- `--suite all`: `rag,dag,cag,cag_scoped,cag_oracle_memory`
+- `--modes mode1,mode2,...`: explicit mode list (cannot be combined with an explicit `--suite`)
+- `--memory-top-k N` (default `5`): cap memory rows for `cag_scoped` and `cag_oracle_memory`
+
+Mode behavior:
+
+- `rag`: fresh retrieval only
+- `dag`: fixed process baseline with fresh retrieval
+- `cag`: baseline persistent memory retrieval (unbounded memory dump)
+- `cag_scoped`: deterministic top-K CAG retrieval with score `3.0*concept_overlap + 1.0*tag_overlap + 0.5*task_text_overlap + 1.0*recency_weight`
+- `cag_oracle_memory`: diagnostic top-K ceiling that peeks at continuity metadata (not a fair baseline)
+
 ## Scoring Method
 
-Baseline deterministic scoring is concept-group based (not raw keyword-only matching):
+Deterministic scoring is concept-group based:
 
 - each concept has a `concept` label plus `accepted_terms`
 - a concept counts as a hit if any accepted synonym appears
-- plain string terms still work (they are treated as one-concept/one-term groups)
+- plain string terms still work (treated as one-concept/one-term groups)
 
-Evidence is split into two metrics:
+Evidence is split into:
 
 - `source_evidence_recall`
 - `domain_rule_recall`
 
-For compatibility, `evidence_recall` is still emitted and derived from both:
+Compatibility field `evidence_recall` is derived from both.
 
-- average of source/domain when both exist
-- the non-empty side when only one exists
-
-Contradictions are scored via `contradiction_terms` and subtracted from the composite:
+Contradictions are scored via `contradiction_terms` and subtracted from composite:
 
 - `contradiction_penalty`
 - `contradiction_hit_count`
 - `contradiction_hits` (in `raw.jsonl`)
 
-Deterministic score remains primary. Optional judge fields are secondary diagnostics only.
+When a metric bucket has no concepts for a row, that metric is `null` and excluded from the composite denominator (renormalized over present metrics).
 
-## Composite Score
+## Composite Score Weights
 
-- 30% checklist quality
-- 15% source evidence recall
-- 15% domain rule recall
-- 30% continuity recall
-- 5% token efficiency
-- 5% latency efficiency
+`BASE_WEIGHTS` in `cag_bench/scoring.py`:
+
+- 34% checklist quality
+- 12% source evidence recall
+- 12% domain rule recall
+- 40% continuity recall
+- 1% token efficiency
+- 1% latency efficiency
 - minus contradiction penalty
 
 ## Outputs
 
 - `summary.csv`
 - `raw.jsonl`
+- `failures.csv`
+- `phase_summary.csv`
 - `score_curve.png`
 - `checklist_quality_curve.png`
 - `source_evidence_recall_curve.png`
 - `domain_rule_recall_curve.png`
 - `evidence_recall_curve.png`
 - `continuity_recall_curve.png`
+- `memory_recall_curve.png`
+- `memory_precision_curve.png`
+- `continuity_per_memory_token_curve.png`
 - `token_efficiency_curve.png`
 - `latency_efficiency_curve.png`
 - `contradiction_penalty_curve.png`
 - `all_metrics_grid.png`
 - `aggregated_metrics.csv`
+- `SUMMARY.md`
 
-`raw.jsonl` now includes concept-level breakdowns for inspection (`concept_hits` + `contradiction_hits`).
+`raw.jsonl` includes concept-level breakdowns and scoped retrieval traces (`retrieval_scores`) for `cag_scoped`.
 
 ## Interpretation Guidance
 
-The strongest CAG validation signal is still continuity recall.
+Diagnostic split to localize bottlenecks:
 
-CAG should not be expected to win token efficiency because it carries memory forward.
+- oracle high, scoped low: retrieval is the bottleneck
+- oracle low: memory content is weak or the model ignores memory
 
-A strong CAG result typically shows:
-
-- higher continuity recall
-- competitive or better composite score
-- tolerable token overhead
-- low contradiction penalty
+CAG modes are expected to spend more tokens than RAG/DAG due to memory context.

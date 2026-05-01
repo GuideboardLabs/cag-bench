@@ -16,7 +16,18 @@ def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            writer.writerow({k: json.dumps(v, ensure_ascii=False) if isinstance(v, (list, dict)) else v for k, v in row.items()})
+            writer.writerow(
+                {
+                    k: (
+                        json.dumps(v, ensure_ascii=False)
+                        if isinstance(v, (list, dict))
+                        else ''
+                        if v is None
+                        else v
+                    )
+                    for k, v in row.items()
+                }
+            )
 
 
 def main() -> None:

@@ -1,4 +1,3 @@
-
 from typing import Dict, Any
 from .utils import coerce_concept_groups, coerce_contradiction_groups, contains_term
 
@@ -11,8 +10,10 @@ BASE_WEIGHTS = {
     "latency_efficiency": 0.01,
 }
 
-def _safe_pct(hit_count: int, total: int) -> float:
-    return 1.0 if total <= 0 else (hit_count / total)
+def _safe_pct(hit_count: int, total: int) -> float | None:
+    if total <= 0:
+        return None
+    return hit_count / total
 
 def _hit_concepts(answer: str, groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -50,10 +51,11 @@ def _hit_contradictions(answer: str, groups: list[dict[str, Any]]) -> list[dict[
         )
     return rows
 
-def _rows_to_pct(rows: list[dict[str, Any]]) -> tuple[float, int, int]:
+def _rows_to_pct(rows: list[dict[str, Any]]) -> tuple[float | None, int, int]:
     hit_count = sum(1 for row in rows if row.get("hit"))
     total = len(rows)
-    return _safe_pct(hit_count, total) * 100.0, hit_count, total
+    pct = _safe_pct(hit_count, total)
+    return (None if pct is None else pct * 100.0), hit_count, total
 
 def _resolve_evidence_groups(task: Dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if "source_evidence_terms" in task or "domain_rule_terms" in task:
@@ -92,13 +94,13 @@ def metric_scores(
         domain_hit_count, domain_total = source_hit_count, source_total
 
     if source_total > 0 and domain_total > 0:
-        evidence_recall = (source_evidence_recall + domain_rule_recall) / 2.0
+        evidence_recall = (float(source_evidence_recall) + float(domain_rule_recall)) / 2.0
     elif source_total > 0:
         evidence_recall = source_evidence_recall
     elif domain_total > 0:
         evidence_recall = domain_rule_recall
     else:
-        evidence_recall = 100.0
+        evidence_recall = None
 
     contradiction_penalty = sum(row["penalty"] for row in contradiction_rows)
     token_efficiency = max(0.0, min(1.0, 1.0 - (prompt_tokens / token_budget))) * 100.0
@@ -134,9 +136,17 @@ def metric_scores(
     }
 
 def composite_score(metrics: Dict[str, float], weights: Dict[str, float] = BASE_WEIGHTS) -> float:
-    weighted_sum = sum(float(metrics.get(k, 0.0)) * w for k, w in weights.items())
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for metric, weight in weights.items():
+        value = metrics.get(metric)
+        if value is None:
+            continue
+        weighted_sum += float(value) * weight
+        weight_total += weight
+    normalized = (weighted_sum / weight_total) if weight_total > 0 else 0.0
     penalty = float(metrics.get("contradiction_penalty", 0.0))
-    return max(0.0, weighted_sum - penalty)
+    return max(0.0, normalized - penalty)
 
 def term_breakdown(answer: str, task: Dict[str, Any]) -> Dict[str, Any]:
     scored = metric_scores(answer, task, prompt_tokens=0, latency_seconds=0)
