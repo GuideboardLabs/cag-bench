@@ -17,6 +17,7 @@ CURVE_METRICS = [
     ('latency_efficiency', 'Latency efficiency'),
     ('memory_recall', 'Memory recall'),
     ('memory_precision', 'Memory precision'),
+    ('memory_usage_rate', 'Memory usage rate'),
     ('continuity_per_memory_token', 'Continuity per memory token'),
     ('contradiction_penalty', 'Contradiction penalty (lower is better)'),
 ]
@@ -250,7 +251,10 @@ def _phase_rows(df: pd.DataFrame) -> list[dict]:
         'continuity_recall',
         'memory_recall',
         'memory_precision',
+        'memory_usage_rate',
         'continuity_per_memory_token',
+        'memory_tokens_used',
+        'token_efficiency',
         'prompt_tokens',
         'contradiction_penalty',
     ]
@@ -280,14 +284,6 @@ def _phase_rows(df: pd.DataFrame) -> list[dict]:
 def _write_phase_summary(df: pd.DataFrame, out_dir: Path) -> None:
     rows = _phase_rows(df)
     out_path = out_dir / 'phase_summary.csv'
-    if not rows:
-        out_path.write_text(
-            'phase,mode,score,continuity_recall,memory_recall,memory_precision,continuity_per_memory_token,prompt_tokens,contradiction_penalty\n',
-            encoding='utf-8',
-        )
-        return
-
-    phase_df = pd.DataFrame(rows)
     ordered_cols = [
         'phase',
         'mode',
@@ -295,10 +291,21 @@ def _write_phase_summary(df: pd.DataFrame, out_dir: Path) -> None:
         'continuity_recall',
         'memory_recall',
         'memory_precision',
+        'memory_usage_rate',
         'continuity_per_memory_token',
+        'memory_tokens_used',
+        'token_efficiency',
         'prompt_tokens',
         'contradiction_penalty',
     ]
+    if not rows:
+        out_path.write_text(','.join(ordered_cols) + '\n', encoding='utf-8')
+        return
+
+    phase_df = pd.DataFrame(rows)
+    for col in ordered_cols:
+        if col not in phase_df.columns:
+            phase_df[col] = None
     phase_df = phase_df[ordered_cols]
     phase_df.to_csv(out_path, index=False)
 
@@ -329,7 +336,9 @@ def _append_phase_summary_md(lines: list[str], out_dir: Path) -> None:
             continuity = _safe_float(row.get('continuity_recall'))
             mem_recall = _safe_float(row.get('memory_recall'))
             mem_precision = _safe_float(row.get('memory_precision'))
+            mem_usage = _safe_float(row.get('memory_usage_rate'))
             cpm = _safe_float(row.get('continuity_per_memory_token'))
+            mem_tokens = _safe_float(row.get('memory_tokens_used'))
             tokens = _safe_float(row.get('prompt_tokens'))
             contradiction = _safe_float(row.get('contradiction_penalty'))
             lines.append(
@@ -337,7 +346,9 @@ def _append_phase_summary_md(lines: list[str], out_dir: Path) -> None:
                 f"continuity {_fmt_num(continuity) if continuity is not None else 'n/a'}, "
                 f"memory recall {_fmt_num(mem_recall) if mem_recall is not None else 'n/a'}, "
                 f"memory precision {_fmt_num(mem_precision) if mem_precision is not None else 'n/a'}, "
+                f"memory usage rate {_fmt_num(mem_usage) if mem_usage is not None else 'n/a'}, "
                 f"continuity/token {_fmt_num(cpm) if cpm is not None else 'n/a'}, "
+                f"memory tokens {_fmt_num(mem_tokens) if mem_tokens is not None else 'n/a'}, "
                 f"prompt tokens {_fmt_num(tokens) if tokens is not None else 'n/a'}, "
                 f"contradiction penalty {_fmt_num(contradiction) if contradiction is not None else 'n/a'}."
             )
@@ -503,6 +514,8 @@ def make_plots(summary_csv, out_dir, raw_trials=False, theme='light'):
     out_dir.mkdir(parents=True, exist_ok=True)
     summary_csv = Path(summary_csv)
     df = pd.read_csv(summary_csv)
+    if 'status' in df.columns:
+        df = df[df['status'].astype(str).str.lower() != 'failed'].reset_index(drop=True)
     modes = _detected_modes(df)
 
     for metric, title in CURVE_METRICS:

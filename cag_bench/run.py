@@ -231,6 +231,7 @@ def _memory_metrics(
     memory_rows: list[dict],
     continuity_catalog: list[dict],
     mode_uses_memory: bool,
+    answer: str = "",
 ) -> dict:
     if not mode_uses_memory:
         return {
@@ -240,6 +241,12 @@ def _memory_metrics(
             "continuity_per_memory_token": None,
             "irrelevant_memory_used": None,
             "selected_memory_ids": [],
+            "memory_usage_rate": None,
+            "selected_memory_concepts": [],
+            "used_selected_memory_concepts": [],
+            "unused_selected_memory_concepts": [],
+            "selected_memory_concepts_count": 0,
+            "used_selected_memory_concepts_count": 0,
         }
 
     selected_memory_ids = [row.get("memory_id") for row in memory_rows if row.get("memory_id")]
@@ -288,6 +295,34 @@ def _memory_metrics(
         if not (promoted & task_terms):
             irrelevant_memory_used += 1
 
+    catalog_by_key = {concept["key"]: concept for concept in continuity_catalog}
+    selected_concept_keys: list[str] = []
+    seen_selected: set[str] = set()
+    for concept in continuity_catalog:
+        if concept["key"] in seen_selected:
+            continue
+        if any(_row_hits_concept(row, concept) for row in memory_rows):
+            selected_concept_keys.append(concept["key"])
+            seen_selected.add(concept["key"])
+
+    used_selected_keys: list[str] = []
+    unused_selected_keys: list[str] = []
+    for key in selected_concept_keys:
+        concept = catalog_by_key.get(key)
+        if not concept:
+            continue
+        if any(contains_term(answer, term) for term in concept.get("accepted_terms", [])):
+            used_selected_keys.append(key)
+        else:
+            unused_selected_keys.append(key)
+
+    if selected_concept_keys:
+        memory_usage_rate = (
+            len(used_selected_keys) / len(selected_concept_keys)
+        ) * 100.0
+    else:
+        memory_usage_rate = None
+
     return {
         "memory_recall": memory_recall,
         "memory_precision": memory_precision,
@@ -295,6 +330,12 @@ def _memory_metrics(
         "continuity_per_memory_token": continuity_per_memory_token,
         "irrelevant_memory_used": irrelevant_memory_used,
         "selected_memory_ids": selected_memory_ids,
+        "memory_usage_rate": memory_usage_rate,
+        "selected_memory_concepts": selected_concept_keys,
+        "used_selected_memory_concepts": used_selected_keys,
+        "unused_selected_memory_concepts": unused_selected_keys,
+        "selected_memory_concepts_count": len(selected_concept_keys),
+        "used_selected_memory_concepts_count": len(used_selected_keys),
     }
 
 
@@ -342,6 +383,8 @@ def run_one(
     num_ctx,
     retrieval_k,
     memory_top_k,
+    cag_memory_cap,
+    cag_carry_forward,
     continuity_catalog,
     judge=False,
     judge_model=None,
@@ -358,7 +401,7 @@ def run_one(
         elif mode == "cag_oracle_memory":
             memory_rows = _retrieve_oracle_memory(memory, task, k=memory_top_k)
         else:
-            memory_rows = memory.retrieve(task)
+            memory_rows = memory.retrieve(task, k=cag_memory_cap)
     else:
         memory_rows = []
 
@@ -367,7 +410,12 @@ def run_one(
     elif mode == "dag":
         messages = dag_prompt(task, sources)
     else:
-        messages = cag_prompt(task, sources, memory_rows)
+        messages = cag_prompt(
+            task,
+            sources,
+            memory_rows,
+            carry_forward=cag_carry_forward,
+        )
 
     ptext = prompt_text(messages)
     prompt_tokens = approx_tokens(ptext)
@@ -393,6 +441,7 @@ def run_one(
         memory_rows,
         continuity_catalog,
         mode_uses_memory=mode.startswith("cag"),
+        answer=answer,
     )
     metrics.update(memory_metrics)
 
@@ -456,6 +505,12 @@ def failed_row(mode, task, err):
         "concept_hits": None,
         "contradiction_hits": None,
         "selected_memory_ids": [],
+        "memory_usage_rate": None,
+        "selected_memory_concepts": [],
+        "used_selected_memory_concepts": [],
+        "unused_selected_memory_concepts": [],
+        "selected_memory_concepts_count": None,
+        "used_selected_memory_concepts_count": None,
         "prompt_tokens": None,
         "latency_seconds": None,
         "retrieved_sources": [],
@@ -486,8 +541,20 @@ def main():
     p.add_argument(
         "--memory-top-k",
         type=int,
-        default=5,
+        default=8,
         help="Top-K memory rows for cag_scoped and cag_oracle_memory modes.",
+    )
+    p.add_argument(
+        "--cag-memory-cap",
+        type=int,
+        default=25,
+        help="Cap memory rows for unbounded `cag` mode. Larger than --memory-top-k so cag remains a generous baseline.",
+    )
+    p.add_argument(
+        "--cag-carry-forward",
+        action="store_true",
+        default=False,
+        help="Add a carry-forward instruction to CAG-family prompts to improve memory uptake.",
     )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--raw-trials", action="store_true")
@@ -518,6 +585,8 @@ def main():
     args = p.parse_args()
     if args.memory_top_k <= 0:
         p.error("--memory-top-k must be > 0.")
+    if args.cag_memory_cap <= 0:
+        p.error("--cag-memory-cap must be > 0.")
     resolved_modes = _resolve_modes(args, p, suite_explicit)
 
     out_base = Path(args.out)
@@ -554,9 +623,12 @@ def main():
         "continuity_recall",
         "memory_recall",
         "memory_precision",
+        "memory_usage_rate",
         "memory_tokens_used",
         "continuity_per_memory_token",
         "irrelevant_memory_used",
+        "selected_memory_concepts_count",
+        "used_selected_memory_concepts_count",
         "token_efficiency",
         "latency_efficiency",
         "contradiction_penalty",
@@ -623,6 +695,8 @@ def main():
                             args.num_ctx,
                             args.retrieval_k,
                             args.memory_top_k,
+                            args.cag_memory_cap,
+                            args.cag_carry_forward,
                             continuity_catalog,
                             judge=args.judge,
                             judge_model=args.judge_model,

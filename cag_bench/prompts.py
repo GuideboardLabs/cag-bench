@@ -24,9 +24,16 @@ def dag_prompt(task, sources):
     user=f"""Mode: DAG baseline. Follow this fixed workflow every time: Plan -> Implement -> Test -> Review -> Approve -> PR summary. You get only the current task and freshly retrieved context. You do not have memory from prior runs.\n\nCurrent project task:\n{task['prompt']}\n\nRetrieved context:\n{format_sources(sources)}\n\nReturn sections: Plan, Implementation, Tests, Review, Approval Gate, PR Summary."""
     return [{"role":"system","content":SYSTEM},{"role":"user","content":user}]
 
-def cag_prompt(task, sources, memory_rows):
+def cag_prompt(task, sources, memory_rows, carry_forward: bool = False):
+    carry_forward_block = ""
+    if carry_forward and memory_rows:
+        carry_forward_block = (
+            "Treat the items in project memory as binding prior project decisions. "
+            "Before your implementation plan, write a 'Prior decisions carried forward:' bulleted list quoting the memory items you are using. "
+            "Do not introduce architecture choices that conflict with prior decisions unless the task explicitly changes them.\n\n"
+        )
     user=f"""Mode: CAG. Use current context plus accumulated project memory. The memory reflects accepted decisions from earlier related tasks.\n\nCurrent project task:\n{task['prompt']}\n\nAccumulated project memory:\n{format_memory(memory_rows)}\n\nFreshly retrieved context:\n{format_sources(sources)}\n\nReturn: implementation plan, how this uses prior project decisions, key files/modules, risks, tests."""
-    return [{"role":"system","content":SYSTEM},{"role":"user","content":user}]
+    return [{"role":"system","content":SYSTEM + ("\n\n" + carry_forward_block if carry_forward_block else "")},{"role":"user","content":user}]
 
 def _concept_labels(values, limit):
     labels = [g.get("concept", "") for g in coerce_concept_groups(values)]

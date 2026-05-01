@@ -11,6 +11,9 @@ class ProjectMemory:
         self.trial = trial
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists(): self.path.write_text('', encoding='utf-8')
+        self.promotions_path = self.path.with_name(self.path.stem + '_promotions.jsonl')
+        if not self.promotions_path.exists():
+            self.promotions_path.write_text('', encoding='utf-8')
 
     @staticmethod
     def _norm_set(values: list[str]) -> set[str]:
@@ -20,6 +23,21 @@ class ProjectMemory:
         return load_jsonl(self.path)
 
     def add(self, task: Dict[str, Any], accepted_summary: str) -> None:
+        candidate_text = (accepted_summary or '').strip()
+        if not candidate_text:
+            append_jsonl(
+                self.promotions_path,
+                {
+                    "task_id": task.get('id'),
+                    "task_index": task.get('index'),
+                    "candidate_text": "",
+                    "decision": "task_local",
+                    "reason": "no_promote_summary",
+                    "memory_id": None,
+                },
+            )
+            return
+
         next_idx = len(self.rows()) + 1
         trial_num = int(self.trial or 0)
         memory_id = f"M{trial_num:02d}_{next_idx:05d}"
@@ -31,9 +49,21 @@ class ProjectMemory:
                 "task_title": task['title'],
                 "scope": task.get('scope', 'project'),
                 "memory_type": task.get('memory_type', 'decision'),
-                "text": accepted_summary.strip(),
+                "text": candidate_text,
                 "tags": task.get('tags', []),
                 "promoted_terms": task.get('promote_terms', []),
+                "source": "promote_summary",
+            },
+        )
+        append_jsonl(
+            self.promotions_path,
+            {
+                "task_id": task.get('id'),
+                "task_index": task.get('index'),
+                "candidate_text": candidate_text,
+                "decision": "promote",
+                "reason": "supported_by_promote_summary",
+                "memory_id": memory_id,
             },
         )
 

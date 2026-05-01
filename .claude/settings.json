@@ -10,7 +10,18 @@
       "Bash(git -C /home/sc/cag-bench-v3/cag-bench show --stat 6cf8f8d)",
       "Bash(timeout 90 ./scripts/dry_run.sh)",
       "Bash(python3 -c ' *)",
-      "Read(//home/sc/cag-bench-v3/cag-bench-broken/**)"
+      "Read(//home/sc/cag-bench-v3/cag-bench-broken/**)",
+      "Bash(grep -E \"\\(run|scoring|eval|memory\\)\\\\.py$\")",
+      "Bash(python3)",
+      "Bash(python -c \"from cag_bench.scoring import BASE_WEIGHTS; import json; print\\(json.dumps\\(BASE_WEIGHTS, indent=2\\)\\)\")",
+      "Bash(./scripts/dry_run.sh --max-tasks 5 --repeat-runs 2 --suite all --out results/dry_run_diag)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('model:', d.get\\('model'\\)\\); print\\('suite:', d.get\\('suite'\\)\\); print\\('resolved_modes:', d.get\\('resolved_modes'\\)\\)\")",
+      "Bash(python -m cag_bench.inspect --raw /home/sc/cag-bench-v3/cag-bench/results/qwen7b_variants_smoke/20260501_130904/raw.jsonl --task T15)",
+      "Bash([ -f \"/home/sc/cag-bench-v3/cag-bench/results/$run/SUMMARY.md\" ])",
+      "Bash(pip show *)",
+      "Bash(pip3 show *)",
+      "Bash(.venv/bin/pip show *)",
+      "WebSearch"
     ]
   }
 }
