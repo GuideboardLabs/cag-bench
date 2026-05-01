@@ -1,7 +1,5 @@
 __pycache__/
 *.pyc
 .venv/
-/results/
+results/
 .cache/
-*.log
-.DS_Store

@@ -36,30 +36,5 @@ class OllamaClient:
         data = resp.json()
         return {"content": data.get("message", {}).get("content", ""), "latency_seconds": latency, "raw": data}
 
-    def embed(self, model: str, texts: List[str]) -> List[List[float]]:
-        if not texts:
-            return []
-        vectors: List[List[float]] = []
-        for text in texts:
-            payload = {"model": model, "input": text}
-            # Prefer modern /api/embed when available.
-            for endpoint in ("/api/embed", "/api/embeddings"):
-                url = f"{self.base_url}{endpoint}"
-                try:
-                    resp = self._post_json(url, payload)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    if "embeddings" in data and isinstance(data["embeddings"], list) and data["embeddings"]:
-                        vectors.append(data["embeddings"][0])
-                        break
-                    if "embedding" in data and isinstance(data["embedding"], list):
-                        vectors.append(data["embedding"])
-                        break
-                except Exception:
-                    continue
-            else:
-                raise RuntimeError("Failed to fetch embedding from Ollama endpoints /api/embed or /api/embeddings")
-        return vectors
-
 def approx_tokens(text: str) -> int:
     return max(1, int(len(text) / 4))
