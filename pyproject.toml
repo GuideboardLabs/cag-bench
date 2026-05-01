@@ -1,0 +1,16 @@
+[project]
+name = "cag-bench"
+version = "0.1.0"
+description = "Local Ollama benchmark comparing RAG, DAG and CAG-style persistent context accumulation."
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31.0",
+  "numpy>=1.26.0",
+  "pandas>=2.2.0",
+  "matplotlib>=3.8.0",
+  "pydantic>=2.6.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cag_bench*"]
