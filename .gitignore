@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 results/
 .cache/
+.claude/
+CLAUDE.md
+.mcp.json
+.claudeignore
