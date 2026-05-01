@@ -359,9 +359,6 @@ def _write_summary_md(df: pd.DataFrame, out_dir: Path, summary_csv: Path) -> Non
     lines.append('')
     lines.append(f'- Generated: {ts}')
     lines.append(f'- Source summary: `{summary_csv}`')
-    lines.append(
-        "*Continuity terms in this dataset are derived from prior tasks' promoted decisions. CAG memory contains those decisions by construction. Disclose this design when comparing CAG to RAG/DAG.*"
-    )
     lines.append(f'- Task range: {task_start} to {task_end}')
     lines.append(f'- Modes detected: {", ".join(modes)}')
     if 'trial' in df.columns:
@@ -369,6 +366,10 @@ def _write_summary_md(df: pd.DataFrame, out_dir: Path, summary_csv: Path) -> Non
         if not trial_vals.empty:
             lines.append(f'- Trials detected: {int(trial_vals.nunique())}')
     lines.append(f'- Total rows analyzed: {len(df)}')
+    lines.append('')
+    lines.append(
+        "> *Continuity terms in this dataset are derived from prior tasks' promoted decisions. CAG memory contains those decisions by construction. Disclose this design when comparing CAG to RAG/DAG.*"
+    )
     lines.append('')
     lines.append(
         'Primary comparison uses overall means across all rows (all tasks and all trials), not a single last run.'

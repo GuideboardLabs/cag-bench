@@ -301,27 +301,33 @@ def _memory_metrics(
 def _retrieve_oracle_memory(
     memory: ProjectMemory, task: dict, k: int | None = None
 ) -> list[dict]:
+    continuity_groups = coerce_concept_groups(task.get("continuity_terms", []))
     continuity_terms = {
         str(v).strip().lower()
-        for group in coerce_concept_groups(task.get("continuity_terms", []))
+        for group in continuity_groups
         for v in group.get("accepted_terms", [])
         if str(v).strip()
     }
     if not continuity_terms:
         return []
-    selected = []
-    for row in memory.rows():
+    selected: list[tuple[int, int, dict]] = []
+    for idx, row in enumerate(memory.rows()):
         promoted = {
             str(v).strip().lower()
             for v in row.get("promoted_terms", [])
             if str(v).strip()
         }
         if promoted & continuity_terms:
-            selected.append(row)
-    selected = list(reversed(selected))
+            concept_overlap = sum(
+                1 for concept in continuity_groups if _row_hits_concept(row, concept)
+            )
+            selected.append((concept_overlap, idx, row))
+
+    selected.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    selected_rows = [row for _, _, row in selected]
     if k is None:
-        return selected
-    return selected[:k]
+        return selected_rows
+    return selected_rows[:k]
 
 
 def run_one(

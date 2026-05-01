@@ -4,7 +4,13 @@
       "Bash(git -C /home/sc/cag-bench-v3/cag-bench log --oneline -20)",
       "Bash(python3 -m json.tool)",
       "Bash(git -C /home/sc/cag-bench-v3/cag-bench log --oneline -10)",
-      "Bash(git -C /home/sc/cag-bench-v3/cag-bench status)"
+      "Bash(git -C /home/sc/cag-bench-v3/cag-bench status)",
+      "Bash(git -C /home/sc/cag-bench-v3/cag-bench diff --stat HEAD)",
+      "Bash(git -C /home/sc/cag-bench-v3/cag-bench log --oneline -15)",
+      "Bash(git -C /home/sc/cag-bench-v3/cag-bench show --stat 6cf8f8d)",
+      "Bash(timeout 90 ./scripts/dry_run.sh)",
+      "Bash(python3 -c ' *)",
+      "Read(//home/sc/cag-bench-v3/cag-bench-broken/**)"
     ]
   }
 }
