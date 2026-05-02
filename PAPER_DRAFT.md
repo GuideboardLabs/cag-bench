@@ -156,13 +156,15 @@ Fixed parameters across all runs: temperature 0.1, context window 8192 tokens, s
 |---|---|---|---|---|
 | Baseline 7B | qwen2.5-coder:7b | rag, dag, cag | 30 | 3 |
 | Baseline 3B | qwen2.5-coder:3b-instruct | rag, dag, cag | 30 | 10 |
-| CAG Ablation 7B | qwen2.5-coder:7b | cag, cag_scoped, cag_oracle | 30 | 3 |
+| CAG Ablation 7B | qwen2.5-coder:7b | cag, cag_scoped, cag_scoped_promptonly, cag_oracle_memory | 30 | 3 |
 
 ---
 
 ## 6. Results
 
 ### 6.1 RAG vs DAG vs CAG: baseline comparison
+
+The `rag` baseline should be interpreted as a source-only retrieval system without durable project memory — its purpose is to test whether fresh document retrieval alone can substitute for accumulated context. We do not claim it is a state-of-the-art retrieval system; we claim that source-only retrieval is structurally insufficient for tasks whose correct answers depend on prior model interactions. The `dag` baseline tests the same hypothesis under a fixed workflow prompt instead of free generation, isolating whether prompt structure alone can compensate for missing memory.
 
 **Table 1. Overall means across 30 tasks (qwen2.5-coder:7b, 3 trials)**
 
@@ -229,6 +231,8 @@ Note also that `cag_scoped` continuity_recall in T21–T30 (37.7) modestly excee
 
 Token cost: base CAG uses 675 tokens of memory context on average, growing to 1,850 at task 30. The K=5 variants (scoped, oracle, promptonly) all hold ~216–222 tokens regardless of phase — a 67% reduction in context cost relative to the unbounded dump. If memory_recall under deployable retrieval can be improved through a higher K or richer signal, scoped variants become clearly preferable on efficiency grounds.
 
+This suggests that focused memory selection can outperform larger context dumps in efficiency terms — sustaining comparable continuity output at one-third the token cost — even when absolute recall is lower, highlighting a trade-off between coverage and usability that the `continuity_per_memory_token` metric captures directly (Figure 6).
+
 ![Figure 3. Memory recall by task index across CAG variants — base CAG holds 100% throughout; the two label-informed variants (scoped, oracle) converge at ~62% by tasks 21–30; the label-free deployable variant (`cag_scoped_promptonly`) drops to ~30%.](paper_assets/figures/fig3_memory_recall_ablation.png)
 
 ![Figure 4. Memory precision by task index — scoped/oracle maintain ~53% precision; promptonly trails at ~48% with substantially lower coverage.](paper_assets/figures/fig4_memory_precision_ablation.png)
@@ -251,11 +255,11 @@ The most actionable finding from this benchmark concerns `memory_usage_rate`: th
 
 Memory usage rate declines across all four modes as task complexity increases. For base CAG, which holds 100% memory_recall, less than 40% of retrieved concepts make it into the final answer in the late phase. Even when the correct prior decisions are present in the prompt, the model does not consistently use them.
 
-The gap between `memory_recall` and `continuity_recall` quantifies the uptake deficit at the aggregate level: −47 points for base CAG, −31 for label-informed scoped, −20 for label-free promptonly. The smaller gap under label-free retrieval is a numerical consequence of its lower memory_recall — when fewer concepts are retrieved, the absolute uptake gap is smaller even if the rate is similar. **The model is not the bottleneck when it comes to finding information in the prompt; it is the bottleneck when it comes to using that information in the output.**
+The gap between `memory_recall` and `continuity_recall` quantifies the uptake deficit at the aggregate level: −47 points for base CAG, −31 for label-informed scoped, −20 for label-free promptonly. The smaller gap under label-free retrieval is a numerical consequence of its lower memory_recall — when fewer concepts are retrieved, the absolute uptake gap is smaller even if the rate is similar. **Even under favorable or label-informed retrieval, models fail to reliably incorporate available memory into outputs, indicating that memory uptake is a primary bottleneck alongside retrieval rather than retrieval alone.** The deployable label-free retriever shows that retrieval, too, is a real bottleneck once label leakage is removed: the two failure modes operate together, and addressing only one is insufficient.
 
 **Surprise finding: label-free retrieval drives higher uptake in early and middle phases.** `cag_scoped_promptonly` achieves the highest memory_usage_rate of any variant in T01–T10 (63.2%) and T11–T20 (53.2%), exceeding both label-informed scoped and the oracle. The plausible interpretation: a label-free retriever selects memories whose surface text matches the current task prompt and tags. The model finds those memories more obviously relevant to its current reasoning and incorporates them more readily. Label-informed retrieval, by contrast, can pull in rows the answer-key says should be relevant but whose surface text the model does not naturally recognize as connected to the task. This advantage reverses by T21–T30, where `cag_scoped` (label-informed, 57.7%) outperforms promptonly (46.5%) — late tasks have so many continuity concepts that any selection covering them helps, regardless of whether the model immediately recognizes the connection.
 
-This is a small finding within the larger uptake story but a notable one: it suggests that production retrieval systems may have a structural uptake advantage over oracle-style upper bounds in early phases of a project's lifecycle, before the concept space becomes too large for surface matching to suffice.
+This interpretation is consistent with the observation that promptonly retrieval selects memory rows with higher lexical overlap to the current task prompt, but we do not directly measure semantic alignment between selected memory and downstream model attention; confirming the mechanism would require attention-pattern instrumentation and is left to future work (§8.2). As a bounded hypothesis, the finding suggests that production retrieval systems may have a structural uptake advantage over oracle-style upper bounds in early phases of a project's lifecycle, before the concept space becomes too large for surface matching to suffice.
 
 ![Figure 5. Memory usage rate by task index — the fraction of selected memory concepts that appear in the final answer. All three modes decline over time; base CAG shows the steepest fall despite holding 100% memory recall, consistent with attention dilution under growing context load.](paper_assets/figures/fig5_memory_usage_rate.png)
 
