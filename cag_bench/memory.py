@@ -174,3 +174,95 @@ class ProjectMemory:
         if return_scores:
             return chosen, score_rows
         return chosen
+
+    @staticmethod
+    def _jaccard(a: set[str], b: set[str]) -> float:
+        union = a | b
+        if not union:
+            return 0.0
+        return len(a & b) / len(union)
+
+    def retrieve_scoped_promptonly(
+        self,
+        task: Dict[str, Any],
+        sources: List[Any],
+        k: int | None = None,
+        return_scores: bool = False,
+    ) -> List[Dict[str, Any]] | tuple[List[Dict[str, Any]], list[dict[str, Any]]]:
+        rows = self.rows()
+        if not rows:
+            return ([], []) if return_scores else []
+
+        task_prompt_tokens = tokenize(
+            " ".join([task.get("title", ""), task.get("prompt", "")])
+        )
+        source_text = " ".join(
+            [f"{getattr(s, 'title', '')} {getattr(s, 'text', '')}" for s in sources]
+        )
+        source_tokens = tokenize(source_text)
+        task_tags = self._norm_set(task.get("tags", []))
+        rows_count = len(rows)
+
+        scored: list[dict[str, Any]] = []
+        for idx, row in enumerate(rows, start=1):
+            row_text = str(row.get("text", "") or "")
+            row_promoted = " ".join([str(v) for v in row.get("promoted_terms", [])])
+            row_prompt_tokens = tokenize(f"{row_text} {row_promoted}")
+            row_text_tokens = tokenize(row_text)
+            row_tags = self._norm_set(row.get("tags", []))
+
+            task_prompt_overlap = self._jaccard(task_prompt_tokens, row_prompt_tokens)
+            source_doc_overlap = self._jaccard(source_tokens, row_text_tokens)
+            tag_overlap = len(task_tags & row_tags)
+            recency_weight = idx / max(1, rows_count)
+
+            score = (
+                2.0 * task_prompt_overlap
+                + 1.0 * source_doc_overlap
+                + 1.0 * tag_overlap
+                + 0.5 * recency_weight
+            )
+
+            scored.append(
+                {
+                    "row": row,
+                    "score": score,
+                    "task_prompt_overlap": task_prompt_overlap,
+                    "source_doc_overlap": source_doc_overlap,
+                    "tag_overlap": tag_overlap,
+                    "recency_weight": recency_weight,
+                }
+            )
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        limit = len(scored) if k is None else k
+        chosen: list[dict[str, Any]] = []
+        chosen_ids: set[str] = set()
+        total = 0
+        for item in scored[:limit]:
+            row = item["row"]
+            n = len(str(row.get("text", "") or ""))
+            if self.max_chars is not None and total + n > self.max_chars and chosen:
+                continue
+            chosen.append(row)
+            chosen_ids.add(str(row.get("memory_id", "")))
+            total += n
+
+        score_rows = []
+        for item in scored:
+            row = item["row"]
+            memory_id = str(row.get("memory_id", ""))
+            score_rows.append(
+                {
+                    "memory_id": memory_id,
+                    "score": item["score"],
+                    "task_prompt_overlap": item["task_prompt_overlap"],
+                    "source_doc_overlap": item["source_doc_overlap"],
+                    "tag_overlap": item["tag_overlap"],
+                    "recency_weight": item["recency_weight"],
+                    "selected": memory_id in chosen_ids,
+                }
+            )
+        if return_scores:
+            return chosen, score_rows
+        return chosen

@@ -1,9 +1,23 @@
 __pycache__/
 *.pyc
 .venv/
-results/
 .cache/
 .claude/
 CLAUDE.md
 .mcp.json
 .claudeignore
+
+# results/ is tracked, but exclude transient/dev folders by name
+results/dry_run/
+results/dry_run_*/
+results/smoke/
+results/script_smoke/
+results/verify_*/
+results/*/_tmp/
+results/*/raw_archive/
+
+# Large per-row raw outputs and regen artifacts — distributed via GitHub Release artifact
+# Per-run summary CSVs, figures, configs, and memory/promotion logs ARE committed
+results/**/raw.jsonl
+results/**/summary_regen.csv
+results/**/summary_plot_ready.csv

@@ -468,7 +468,7 @@ def _write_summary_md(df: pd.DataFrame, out_dir: Path, summary_csv: Path) -> Non
     (out_dir / 'SUMMARY.md').write_text('\n'.join(lines), encoding='utf-8')
 
 
-def _plot_metric(df, metric, title, out_path, raw_trials=False, theme='light'):
+def _plot_metric(df, metric, title, out_path, raw_trials=False, theme='dark'):
     palette = THEMES[theme]
     modes = _detected_modes(df)
     task_count = len(sorted(df['task_index'].dropna().unique()))
@@ -506,7 +506,7 @@ def _plot_metric(df, metric, title, out_path, raw_trials=False, theme='light'):
     plt.close(fig)
 
 
-def make_plots(summary_csv, out_dir, raw_trials=False, theme='light'):
+def make_plots(summary_csv, out_dir, raw_trials=False, theme='dark'):
     if theme not in THEMES:
         raise ValueError(f'Unknown theme: {theme}. Expected one of: {list(THEMES)}')
     palette = THEMES[theme]
@@ -573,7 +573,7 @@ def main():
     p.add_argument('--summary', required=True)
     p.add_argument('--out-dir', required=True)
     p.add_argument('--raw-trials', action='store_true')
-    p.add_argument('--theme', choices=['light', 'dark'], default='light')
+    p.add_argument('--theme', choices=['light', 'dark'], default='dark')
     args = p.parse_args()
     make_plots(args.summary, args.out_dir, args.raw_trials, args.theme)
 

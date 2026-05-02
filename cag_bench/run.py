@@ -17,8 +17,8 @@ from .utils import append_jsonl, coerce_concept_groups, contains_term, load_json
 
 SUITES = {
     "baselines": ["rag", "dag", "cag"],
-    "cag-ablation": ["cag", "cag_scoped", "cag_oracle_memory"],
-    "all": ["rag", "dag", "cag", "cag_scoped", "cag_oracle_memory"],
+    "cag-ablation": ["cag", "cag_scoped", "cag_scoped_promptonly", "cag_oracle_memory"],
+    "all": ["rag", "dag", "cag", "cag_scoped", "cag_scoped_promptonly", "cag_oracle_memory"],
 }
 ALL_MODES = tuple(sorted({m for values in SUITES.values() for m in values}))
 
@@ -393,10 +393,14 @@ def run_one(
     sources = retriever.retrieve(query, k=retrieval_k)
 
     retrieval_scores = None
-    if mode in ("cag", "cag_scoped", "cag_oracle_memory") and memory is not None:
+    if mode in ("cag", "cag_scoped", "cag_scoped_promptonly", "cag_oracle_memory") and memory is not None:
         if mode == "cag_scoped":
             memory_rows, retrieval_scores = memory.retrieve_scoped(
                 task, k=memory_top_k, return_scores=True
+            )
+        elif mode == "cag_scoped_promptonly":
+            memory_rows, retrieval_scores = memory.retrieve_scoped_promptonly(
+                task, sources, k=memory_top_k, return_scores=True
             )
         elif mode == "cag_oracle_memory":
             memory_rows = _retrieve_oracle_memory(memory, task, k=memory_top_k)

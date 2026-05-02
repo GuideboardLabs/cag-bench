@@ -1,0 +1,8 @@
+{
+  "checklist_quality": 0.34,
+  "source_evidence_recall": 0.12,
+  "domain_rule_recall": 0.12,
+  "continuity_recall": 0.4,
+  "token_efficiency": 0.01,
+  "latency_efficiency": 0.01
+}

@@ -1,0 +1,33 @@
+{
+  "model": "qwen2.5-coder:7b",
+  "ollama_url": "http://localhost:11434",
+  "tasks": "data/tasks.jsonl",
+  "sources": "data/sources",
+  "out": "results/qwen7b_baseline_smoke",
+  "max_tasks": 30,
+  "task_start": 1,
+  "repeat_runs": 3,
+  "retrieval_k": 3,
+  "temperature": 0.1,
+  "num_ctx": 8192,
+  "memory_top_k": 5,
+  "dry_run": false,
+  "raw_trials": true,
+  "timeout": 600,
+  "request_retries": 1,
+  "retry_backoff": 3.0,
+  "judge": false,
+  "judge_model": null,
+  "run_id": null,
+  "continue_on_error": true,
+  "suite": "baselines",
+  "modes": null,
+  "started_at": "2026-05-01T07:44:01",
+  "resolved_out_dir": "results/qwen7b_baseline_smoke/20260501_074401",
+  "task_count": 30,
+  "resolved_modes": [
+    "rag",
+    "dag",
+    "cag"
+  ]
+}

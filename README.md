@@ -16,6 +16,7 @@ No external routing, topic types, lane logic, or app-specific scaffolding are re
 
 - `cag`: baseline persistent memory retrieval, capped at `--cag-memory-cap` (default 25) as a generous-but-bounded dump
 - `cag_scoped`: deterministic top-K retrieval scored by `3.0*concept_overlap + 1.0*tag_overlap + 0.5*task_text_overlap + 1.0*recency_weight`
+- `cag_scoped_promptonly`: label-free top-K retrieval scored by prompt/source/tag/recency overlap — the deployable counterpart to `cag_scoped`'s diagnostic upper bound
 - `cag_oracle_memory`: top-K rows that pass the continuity-overlap filter, sorted by `concept_overlap` descending with creation-order tiebreak (diagnostic ceiling, not a fair baseline)
 
 This setup is designed to expose late-task degradation and to localize whether retrieval or memory content is the bottleneck.
@@ -63,6 +64,7 @@ python -m cag_bench.run \
 
 - `cag`
 - `cag_scoped`
+- `cag_scoped_promptonly`
 - `cag_oracle_memory`
 
 ### Full Matrix
@@ -82,6 +84,7 @@ python -m cag_bench.run \
 - `dag`
 - `cag`
 - `cag_scoped`
+- `cag_scoped_promptonly`
 - `cag_oracle_memory`
 
 ## Full CLI Flag Reference (`python -m cag_bench.run`)
@@ -120,7 +123,7 @@ python -m cag_bench.run \
 
 ```bash
 python -m cag_bench.run --modes rag,dag,cag
-python -m cag_bench.run --modes cag,cag_scoped,cag_oracle_memory
+python -m cag_bench.run --modes cag,cag_scoped,cag_scoped_promptonly,cag_oracle_memory
 ```
 
 ## Dry Run Compatibility
